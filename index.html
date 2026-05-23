@@ -113,7 +113,10 @@
                     <p class="text-slate-500 mt-1 font-medium text-sm sm:text-base">Automated Road Monitoring & Damage Detection</p>
                 </div>
                 <div class="flex items-center gap-3 bg-white/50 p-1.5 rounded-full shadow-inner border border-white">
-                    <label for="userRole" class="text-sm font-semibold pl-3 text-slate-600">View As:</label>
+                    <button id="api-key-btn" class="p-2 text-slate-500 hover:text-slate-900 transition-colors rounded-full hover:bg-slate-100" title="Set API Key">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </button>
+                    <label for="userRole" class="text-sm font-semibold pl-1 text-slate-600">View As:</label>
                     <select id="userRole" class="bg-white text-slate-800 border-none rounded-full shadow-sm py-2 pl-4 pr-10 text-sm font-medium focus:ring-2 focus:ring-slate-900 outline-none cursor-pointer hover:bg-slate-50 transition-colors">
                         <option value="tutorial" selected>Tutorial</option>
                         <option value="public">Public User</option>
@@ -278,6 +281,21 @@
         </div>
     </div>
     
+    <!-- API Key Modal -->
+    <div id="api-modal" class="fixed inset-0 z-[80] flex items-center justify-center p-4 hidden modal-hide">
+        <div class="modal-backdrop fixed inset-0 bg-slate-900/40 backdrop-blur-sm"></div>
+        <div class="modal-content glass-panel rounded-3xl shadow-2xl w-full max-w-md z-10 p-8 border border-white/60">
+            <h3 class="text-2xl font-bold mb-2 text-slate-900">Gemini API Key</h3>
+            <p class="text-sm text-slate-600 mb-6">Host karne ke baad AI features use karne ke liye apni Google Gemini API key enter karein. Ye aapke browser me locally save hogi.</p>
+            <input type="text" id="api-key-input" class="block w-full rounded-xl border-slate-200 bg-white/80 p-3.5 shadow-sm focus:ring-2 focus:ring-slate-900 focus:border-slate-900 outline-none transition-all mb-4" placeholder="AIzaSy...">
+            <p class="text-xs text-slate-500 mb-6">Key lene ke liye <a href="https://aistudio.google.com/app/apikey" target="_blank" class="text-blue-600 hover:underline">Google AI Studio</a> par jaayein.</p>
+            <div class="flex justify-end gap-4">
+                <button id="api-cancel-btn" class="px-6 py-2.5 rounded-xl font-semibold text-slate-600 hover:bg-slate-100 transition-colors">Cancel</button>
+                <button id="api-save-btn" class="btn-primary px-6 py-2.5 rounded-xl font-bold shadow-md">Save Key</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             
@@ -334,6 +352,7 @@
             let tempFile = null;
             let mapInstance = null;
             let markerInstance = null;
+            let pendingAction = null; // Store action to resume after API key is entered
 
             // DOM Elements
             const userRoleSelect = document.getElementById('userRole');
@@ -347,6 +366,8 @@
             const modalContent = document.getElementById('modal-content');
             const mapModal = document.getElementById('map-modal');
             const authModal = document.getElementById('auth-modal');
+            const apiModal = document.getElementById('api-modal');
+            const apiKeyInput = document.getElementById('api-key-input');
             const statusFilter = document.getElementById('statusFilter');
             const sourceFilter = document.getElementById('sourceFilter');
             
@@ -362,10 +383,18 @@
                 return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)));
             };
 
+            const getApiKey = () => localStorage.getItem('gemini_api_key') || '';
+
             const runAdvancedGeminiAnalysis = async (imageFile) => {
-                uploadStatusText.textContent = "Analyzing with Gemini Flash...";
-                const apiKey = ""; // API key is handled automatically by the environment
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const apiKey = getApiKey();
+                if (!apiKey) {
+                    pendingAction = () => document.getElementById('confirm-location-btn').click();
+                    toggleModalClasses(apiModal, true);
+                    throw new Error("API Key missing");
+                }
+
+                uploadStatusText.textContent = "Analyzing with Gemini AI...";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
                 const systemInstruction = { parts: [{ text: `You are an expert civil engineer AI. Return a valid JSON object ONLY.` }] };
                 const prompt = `Analyze road image in India. Provide JSON: {"title": "str", "damageBreakdown": {"primary": "str", "secondary": "str"}, "confidence": num, "severity": {"value": num, "max": 10}, "costEstimation": [{"item": "str", "quantity": "str", "cost": num}], "totalCost": num, "recommendation": "str", "damageRect": {"x":num, "y":num, "w":num, "h":num} }. Image dimensions 800x600.`;
@@ -376,12 +405,16 @@
                         method: 'POST', headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({ contents: [{ parts: [ { text: prompt }, imagePart ] }], systemInstruction, generationConfig: { responseMimeType: "application/json" }})
                     });
-                    if (!response.ok) throw new Error(`API failed`);
+                    if (!response.ok) throw new Error(`API failed: ${response.statusText}`);
                     const result = await response.json();
-                    return JSON.parse(result.candidates[0].content.parts[0].text);
+                    
+                    // Cleanup text in case model adds markdown blocks
+                    let rawText = result.candidates[0].content.parts[0].text;
+                    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                    return JSON.parse(rawText);
                 } catch (error) {
                     console.error('AI Error:', error);
-                    return { title: "Analysis Failed", damageBreakdown: { primary: "Cannot analyze", secondary: "N/A" }, confidence: 0, severity: { value: 0, max: 10 }, costEstimation: [], totalCost: 0, recommendation: "Error. Try again.", damageRect: {x: 0, y: 0, w: 0, h: 0} };
+                    return { title: "Analysis Failed", damageBreakdown: { primary: "Cannot analyze (Check API Key)", secondary: "N/A" }, confidence: 0, severity: { value: 0, max: 10 }, costEstimation: [], totalCost: 0, recommendation: "Error. Check API Key or Network.", damageRect: {x: 0, y: 0, w: 0, h: 0} };
                 }
             };
             
@@ -462,12 +495,24 @@
             });
 
             document.getElementById('confirm-location-btn').addEventListener('click', async () => {
+                if (!getApiKey()) {
+                    pendingAction = () => document.getElementById('confirm-location-btn').click();
+                    toggleModalClasses(apiModal, true);
+                    return;
+                }
+
                 const latlng = markerInstance.getLatLng();
                 closeMapModal();
                 if (!tempFile) return;
                 
                 uploadStatus.classList.remove('hidden');
-                const aiResult = await runAdvancedGeminiAnalysis(tempFile);
+                uploadStatusText.textContent = "Processing...";
+                
+                const aiResult = await runAdvancedGeminiAnalysis(tempFile).catch(() => null);
+                if (!aiResult) {
+                    uploadStatus.classList.add('hidden');
+                    return; // Stopped due to missing key or error thrown
+                }
                 
                 const nearbyPois = importantLocations.filter(loc => getDistanceFromLatLonInKm(latlng.lat, latlng.lng, loc.lat, loc.lng) <= 1.5).map(l => `${l.name} (${l.type})`);
                 const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
@@ -631,13 +676,19 @@
             };
 
             const generateWorkOrder = async (report, analysis) => {
+                const apiKey = getApiKey();
+                if (!apiKey) {
+                    pendingAction = () => generateWorkOrder(report, analysis);
+                    toggleModalClasses(apiModal, true);
+                    return;
+                }
+
                 const woOut = document.getElementById('work-order-output');
                 const btn = document.getElementById('generateWorkOrderBtn');
                 btn.disabled = true;
                 woOut.innerHTML = `<div class="p-6 text-center text-slate-500"><span class="animate-spin inline-block w-5 h-5 border-2 border-slate-400 border-t-slate-900 rounded-full mr-2"></span> Generating AI Work Order...</div>`;
 
-                const apiKey = ""; // Environment handles this
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
                 
                 const prompt = `Act as civil works supervisor. Generate work order in plain text with markdown headings (#### Heading) and lists (* Item). Use some formal Hindi/English terms (e.g., 'Kaam ka Vivaran'). Include: Work Order ID (WO-${report.id}), Location, Issue Date (Today), Priority, Damage Details, Kaam ka Vivaran, Zaroori Samagri, Suraksha Nirdesh, Anumanit Samay. Data: ${JSON.stringify({id:report.id, loc:report.location, dmg:analysis.damageBreakdown, cost:analysis.totalCost})}`;
                 
@@ -647,7 +698,7 @@
                     const html = txt.replace(/#### (.*)/g, '<h4 class="font-bold text-slate-900 mt-4 mb-2">$1</h4>').replace(/\* (.*)/g, '<li class="ml-4 list-disc text-slate-700">$1</li>').replace(/\n/g,'<br>');
                     woOut.innerHTML = `<div class="bg-white/60 backdrop-blur border border-slate-200 p-6 rounded-2xl shadow-sm text-sm">${html}</div>`;
                 } catch(e) {
-                    woOut.innerHTML = `<p class="text-red-500 bg-red-50 p-4 rounded-xl text-sm font-medium">Failed to generate. Please try again.</p>`;
+                    woOut.innerHTML = `<p class="text-red-500 bg-red-50 p-4 rounded-xl text-sm font-medium">Failed to generate (Check API Key). Please try again.</p>`;
                 } finally { btn.disabled = false; }
             };
 
@@ -748,6 +799,25 @@
 
             // Setup Listeners & Init
             userRoleSelect.addEventListener('change', updateView);
+            document.getElementById('api-key-btn').addEventListener('click', () => {
+                apiKeyInput.value = getApiKey();
+                toggleModalClasses(apiModal, true);
+            });
+            document.getElementById('api-cancel-btn').addEventListener('click', () => {
+                toggleModalClasses(apiModal, false);
+                pendingAction = null;
+            });
+            document.getElementById('api-save-btn').addEventListener('click', () => {
+                const val = apiKeyInput.value.trim();
+                if (val) localStorage.setItem('gemini_api_key', val);
+                else localStorage.removeItem('gemini_api_key');
+                toggleModalClasses(apiModal, false);
+                if (pendingAction) {
+                    const action = pendingAction;
+                    pendingAction = null;
+                    action();
+                }
+            });
             document.getElementById('map-cancel-btn').addEventListener('click', () => { fileUpload.value=''; tempFile=null; closeMapModal(); });
             document.getElementById('auth-cancel').addEventListener('click', () => toggleModalClasses(authModal, false));
             document.getElementById('auth-login').addEventListener('click', handleLogin);
@@ -759,6 +829,7 @@
                 if (e.target.id === 'modal-backdrop') closeModal();
                 else if (e.target.parentElement.id === 'auth-modal') toggleModalClasses(authModal, false);
                 else if (e.target.parentElement.id === 'map-modal') closeMapModal();
+                else if (e.target.parentElement.id === 'api-modal') toggleModalClasses(apiModal, false);
             }));
 
             updateView(); // Start
