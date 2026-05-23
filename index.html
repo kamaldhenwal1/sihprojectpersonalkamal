@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road AI Interactive Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Leaflet Map Library -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        .view { display: none; }
+        .view.active { display: block; }
+        .chart-container {
+            position: relative; width: 100%; max-width: 400px;
+            margin-left: auto; margin-right: auto;
+            height: 400px; max-height: 400px;
+        }
+        .modal-backdrop { transition: opacity 0.3s ease-in-out; }
+        .modal-content { transition: transform 0.3s ease-in-out; }
+        .leaflet-container { z-index: 10; }
+        .work-order-content h4 { font-weight: bold; margin-top: 1rem; color: #94a3b8; }
+        .work-order-content ul { list-style-type: disc; margin-left: 1.5rem; }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen antialiased">
+
+    <div id="app" class="container mx-auto p-4 sm:p-6 lg:p-8">
+        
+        <header class="mb-10">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div>
+                    <h1 class="text-3xl sm:text-4xl font-extrabold text-white">Road AI Dashboard</h1>
+                    <p class="text-slate-400 mt-1">Automated Road Monitoring & Damage Detection</p>
+                </div>
+                <div class="flex items-center gap-2 bg-slate-800 p-1 rounded-full shadow-lg">
+                    <label for="userRole" class="text-sm font-medium pr-2 text-slate-300">View As:</label>
+                    <select id="userRole" class="bg-slate-700 text-slate-100 border-slate-600 rounded-full shadow-inner p-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all">
+                        <option value="tutorial" selected>Tutorial</option>
+                        <option value="public">Public User</option>
+                        <option value="maintenance">Maintenance Team</option>
+                        <option value="government">Government Official</option>
+                    </select>
+                </div>
+            </div>
+        </header>
+
+        <main id="main-content">
+            <!-- Tutorial View -->
+            <div id="tutorial-view" class="view active">
+                <div class="bg-slate-800 p-6 rounded-3xl shadow-2xl border border-slate-700">
+                    <h2 class="text-2xl font-bold mb-4 text-white">Welcome to the Advanced Road AI!</h2>
+                    <p class="text-slate-400 mb-6">This dashboard now features an upgraded AI for more precise damage detection and cost estimation. Explore the different roles to see how this powerful new tool enhances decision-making for everyone.</p>
+                    <div class="space-y-6">
+                        <div>
+                            <h3 class="font-semibold text-lg text-white flex items-center gap-2">
+                                <span class="bg-blue-600 text-white w-8 h-6 flex items-center justify-center rounded-full text-sm font-bold">1</span>
+                                Public User
+                            </h3>
+                            <p class="text-slate-400 mt-2">Upload an image of road damage and use the interactive map to pin the exact location. Your report is now instantly analyzed by our advanced AI.</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-lg text-white flex items-center gap-2">
+                                <span class="bg-green-600 text-white w-8 h-6 flex items-center justify-center rounded-full text-sm font-bold">2</span>
+                                Maintenance &amp; Government
+                            </h3>
+                            <p class="text-slate-400 mt-2">Access a detailed AI-powered assessment, including itemized repair costs, a severity index, and actionable recommendations to prioritize and manage repairs effectively.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Public User View -->
+            <div id="public-view" class="view">
+                 <div class="bg-slate-800 p-6 rounded-3xl shadow-2xl border border-slate-700">
+                    <h2 class="text-xl font-semibold mb-4 text-white">Report New Road Damage</h2>
+                    <p class="text-slate-400 mb-4">Spotted a pothole or a crack? Upload a photo and pin the location to get an instant AI-powered analysis.</p>
+                    <div class="mt-4 p-6 border-2 border-dashed border-slate-600 rounded-xl text-center transition-colors hover:border-blue-500">
+                        <svg class="mx-auto h-12 w-12 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                        <label for="file-upload" class="relative cursor-pointer mt-2 text-sm font-medium text-blue-500 hover:text-blue-400 transition-colors"><span>Upload a file</span><input id="file-upload" name="file-upload" type="file" class="sr-only" accept="image/png, image/jpeg"></label>
+                        <p class="text-xs text-slate-500 mt-1">PNG, JPG up to 5MB</p>
+                        <div id="upload-status" class="mt-4 text-sm text-slate-400 hidden"><div class="flex justify-center items-center"><span class="animate-spin h-5 w-5 mr-3 border-t-2 border-b-2 border-blue-500 rounded-full"></span><span id="upload-status-text">Uploading image...</span></div></div>
+                    </div>
+                </div>
+                <div class="mt-8">
+                    <h2 class="text-xl font-semibold mb-4 text-white">My Reports</h2>
+                    <div id="public-reports-container" class="space-y-4"></div>
+                </div>
+            </div>
+
+            <!-- Maintenance Team View -->
+            <div id="maintenance-view" class="view">
+                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <div class="bg-slate-800 p-6 rounded-2xl shadow-md border border-slate-700"><h3 class="text-sm font-medium text-slate-400">New Reports</h3><p id="maintenance-stat-new" class="mt-1 text-3xl font-bold text-white">0</p></div>
+                    <div class="bg-slate-800 p-6 rounded-2xl shadow-md border border-slate-700"><h3 class="text-sm font-medium text-slate-400">Under Review</h3><p id="maintenance-stat-review" class="mt-1 text-3xl font-bold text-white">0</p></div>
+                    <div class="bg-slate-800 p-6 rounded-2xl shadow-md border border-slate-700"><h3 class="text-sm font-medium text-slate-400">In Progress</h3><p id="maintenance-stat-progress" class="mt-1 text-3xl font-bold text-white">0</p></div>
+                    <div class="bg-slate-800 p-6 rounded-2xl shadow-md border border-slate-700"><h3 class="text-sm font-medium text-slate-400">Completed This Week</h3><p id="maintenance-stat-completed" class="mt-1 text-3xl font-bold text-white">0</p></div>
+                </div>
+                <div class="bg-slate-800 p-6 rounded-3xl shadow-2xl border border-slate-700">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                        <h2 id="maintenance-title" class="text-xl font-semibold text-white">Assigned Jobs</h2>
+                        <div class="flex items-center gap-2">
+                            <label for="sourceFilter" class="text-sm font-medium text-slate-300">Source:</label>
+                            <select id="sourceFilter" class="bg-slate-700 text-slate-100 border-slate-600 rounded-full p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"><option value="all">All</option><option value="public">Public Uploads</option><option value="AI">AI Reports</option></select>
+                        </div>
+                    </div>
+                    <div id="maintenance-reports-container" class="space-y-4"></div>
+                </div>
+            </div>
+            
+            <!-- Government View -->
+            <div id="government-view" class="view">
+                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-2 bg-slate-800 p-6 rounded-3xl shadow-2xl border border-slate-700">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+                            <h2 class="text-xl font-semibold text-white">All Reports Overview</h2>
+                            <div class="flex items-center gap-2">
+                                <label for="statusFilter" class="text-sm font-medium text-slate-300">Filter:</label>
+                                <select id="statusFilter" class="bg-slate-700 text-slate-100 border-slate-600 rounded-full p-2 text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"><option value="all">All</option><option value="New">New</option><option value="Under Review">Under Review</option><option value="Funded">Funded</option><option value="In Progress">In Progress</option><option value="Completed">Completed</option></select>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto"><table class="w-full text-sm text-left text-slate-400"><thead class="text-xs text-slate-300 uppercase bg-slate-700"><tr><th scope="col" class="px-6 py-3">ID</th><th scope="col" class="px-6 py-3">Location</th><th scope="col" class="px-6 py-3">Damage</th><th scope="col" class="px-6 py-3">Status</th><th scope="col" class="px-6 py-3">Date</th></tr></thead><tbody id="government-reports-tbody"></tbody></table></div>
+                    </div>
+                    <div class="bg-slate-800 p-6 rounded-3xl shadow-2xl border border-slate-700">
+                        <h2 class="text-xl font-semibold mb-4 text-center text-white">Damage Distribution</h2>
+                        <div class="chart-container"><canvas id="damageTypeChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="report-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden"><div class="modal-backdrop fixed inset-0 bg-black bg-opacity-75" id="modal-backdrop"></div><div id="modal-content" class="modal-content bg-slate-800 text-slate-100 rounded-3xl shadow-2xl w-full max-w-3xl z-10 transform scale-95 max-h-[90vh] overflow-y-auto"></div></div>
+    <div id="auth-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden"><div class="modal-backdrop fixed inset-0 bg-black bg-opacity-75"></div><div class="modal-content bg-slate-800 text-slate-100 rounded-3xl shadow-2xl w-full max-w-sm z-10 p-6"><h3 id="auth-title" class="text-2xl font-bold text-center mb-4">Login</h3><p class="text-sm text-slate-400 text-center mb-6">Enter credentials for this role.</p><div class="space-y-4"><div><label for="auth-id" class="block text-sm font-medium">User ID</label><input type="text" id="auth-id" class="mt-1 block w-full rounded-lg border-slate-600 bg-slate-700 p-3" placeholder="Enter User ID"></div><div><label for="auth-pass" class="block text-sm font-medium">Password</label><input type="password" id="auth-pass" class="mt-1 block w-full rounded-lg border-slate-600 bg-slate-700 p-3" placeholder="Enter Password"></div></div><p id="auth-error" class="text-sm text-red-400 mt-4 text-center hidden"></p><div class="mt-6 flex justify-between"><button id="auth-cancel" class="text-sm font-medium text-slate-400">Cancel</button><button id="auth-login" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold">Login</button></div></div></div>
+    <div id="map-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden"><div class="modal-backdrop fixed inset-0 bg-black bg-opacity-75"></div><div class="modal-content bg-slate-800 text-slate-100 rounded-3xl shadow-2xl w-full max-w-2xl z-10 p-6"><h3 class="text-2xl font-bold text-center mb-4">Pin the Location</h3><p class="text-sm text-slate-400 text-center mb-4">Drag the pin to the exact location of the damage.</p><div id="map-container" class="w-full h-96 rounded-lg border border-slate-600"></div><div class="mt-6 flex justify-end gap-4"><button id="map-cancel-btn" class="text-sm font-medium text-slate-400">Cancel</button><button id="confirm-location-btn" class="bg-blue-600 text-white px-5 py-2 rounded-lg font-semibold">Confirm Location</button></div></div></div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            
+            // --- DATA & STATE ---
+            const sampleData = {
+                reports: [
+                    { id: 101, userId: 1, location: 'MG Road, Sector 14', status: 'Completed', date: '2025-09-10', imageUrl: 'https://placehold.co/800x600/cccccc/ffffff?text=Repaired+Pothole', source: 'public', nearbyPois: [] },
+                    { id: 102, userId: 1, location: 'Cyber Hub Entrance', status: 'In Progress', date: '2025-09-12', imageUrl: 'https://placehold.co/800x600/cccccc/ffffff?text=Road+Damage+1', source: 'public', nearbyPois: ["Cyber Park (Busy Area)"] },
+                    { id: 103, userId: 2, location: 'Golf Course Road', status: 'Under Review', date: '2025-09-13', imageUrl: 'https://placehold.co/800x600/cccccc/ffffff?text=Road+Damage+2', source: 'AI', nearbyPois: [] },
+                    { id: 104, userId: 3, location: 'Road near City Hospital', status: 'New', date: '2025-09-13', imageUrl: 'https://placehold.co/800x600/cccccc/ffffff?text=Road+Damage+3', source: 'public', nearbyPois: ["City Hospital (Hospital)"] },
+                ],
+                analysis: [
+                    { 
+                        reportId: 101,
+                        title: "Advanced AI Damage Assessment",
+                        damageBreakdown: { primary: "Severe Pothole", secondary: "Minor Cracking" },
+                        confidence: 97.5,
+                        severity: { value: 8.0, max: 10 },
+                        costEstimation: [
+                            { item: "Asphalt & Filler", quantity: "2.5 cubic ft", cost: 3500 },
+                            { item: "Labor (2.5 hours)", quantity: "@ ₹900/hr", cost: 2250 },
+                            { item: "Crack Sealant", quantity: "0.5 gallon", cost: 575 },
+                        ],
+                        totalCost: 6325,
+                        recommendation: "High-priority repair. Water ingress poses risk of sub-base damage. Recommend immediate fill and seal.",
+                        damageRect: {x: 250, y: 300, w: 150, h: 100} 
+                    },
+                    { 
+                        reportId: 102,
+                        title: "Advanced AI Damage Assessment",
+                        damageBreakdown: { primary: "Extensive Alligator Cracking", secondary: "Surface Raveling" },
+                        confidence: 94.1,
+                        severity: { value: 9.2, max: 10 },
+                        costEstimation: [
+                            { item: "Asphalt Milling", quantity: "40 sq ft", cost: 4000 },
+                            { item: "Tack Coat", quantity: "2 gallons", cost: 1500 },
+                            { item: "Asphalt Overlay", quantity: "1.5 tons", cost: 9000 },
+                            { item: "Labor (8 hours)", quantity: "@ ₹1100/hr", cost: 8800 },
+                        ],
+                        totalCost: 23300,
+                        recommendation: "Urgent action required. Structural integrity compromised. Full-depth patch or overlay is necessary.",
+                        damageRect: {x: 100, y: 200, w: 450, h: 280}
+                    },
+                    { 
+                        reportId: 103,
+                        title: "Advanced AI Damage Assessment",
+                        damageBreakdown: { primary: "Longitudinal Crack", secondary: "None Detected" },
+                        confidence: 99.8,
+                        severity: { value: 6.5, max: 10 },
+                        costEstimation: [
+                            { item: "Routing & Cleaning", quantity: "15 ft", cost: 1500 },
+                            { item: "Hot-pour Sealant", quantity: "2 gallons", cost: 2300 },
+                            { item: "Labor (1.5 hours)", quantity: "@ ₹900/hr", cost: 1350 },
+                        ],
+                        totalCost: 5150,
+                        recommendation: "Medium priority. Seal within 2-4 weeks to prevent moisture penetration and widening of the crack.",
+                        damageRect: {x: 50, y: 150, w: 700, h: 20}
+                    },
+                    { 
+                        reportId: 104,
+                        title: "Advanced AI Damage Assessment",
+                        damageBreakdown: { primary: "Medium Pothole", secondary: "Edge Cracking" },
+                        confidence: 96.4,
+                        severity: { value: 7.1, max: 10 },
+                        costEstimation: [
+                             { item: "Asphalt & Filler", quantity: "1.5 cubic ft", cost: 2100 },
+                             { item: "Labor (1.5 hours)", quantity: "@ ₹900/hr", cost: 1350 },
+                             { item: "Tack Coat", quantity: "0.5 gallons", cost: 375 },
+                        ],
+                        totalCost: 3825,
+                        recommendation: "High priority. Poses a direct hazard to vehicle tires. Should be filled and compacted promptly.",
+                        damageRect: {x: 400, y: 250, w: 120, h: 90}
+                    },
+                ],
+                users: [
+                    { id: 1, name: 'Citizen A' },
+                    { id: 2, name: 'Citizen B' },
+                    { id: 3, name: 'Citizen C' },
+                ]
+            };
+            const authCredentials = { 'maintenance': { id: 'id', pass: 'kamal' }, 'government': { id: 'id', pass: 'kamal' } };
+            const statusSteps = ['New', 'Under Review', 'Funded', 'In Progress', 'Completed'];
+            const importantLocations = [
+                { name: "City Hospital", type: "Hospital", lat: 28.4630, lng: 77.0260 },
+                { name: "St. Michael's School", type: "School", lat: 28.4550, lng: 77.0300 },
+                { name: "Sadar Market", type: "Market", lat: 28.4600, lng: 77.0200 },
+                { name: "National Highway 48", type: "Highway", lat: 28.4680, lng: 77.0350 },
+                { name: "Cyber Park", type: "Busy Area", lat: 28.4590, lng: 77.0390 }
+            ];
+            let damageChartInstance = null;
+            let currentRole = 'tutorial';
+            let requestedRole = '';
+            let tempFile = null;
+            let mapInstance = null;
+            let markerInstance = null;
+
+            // --- DOM ELEMENTS ---
+            const userRoleSelect = document.getElementById('userRole');
+            const fileUpload = document.getElementById('file-upload');
+            const uploadStatus = document.getElementById('upload-status');
+            const uploadStatusText = document.getElementById('upload-status-text');
+            const publicReportsContainer = document.getElementById('public-reports-container');
+            const maintenanceReportsContainer = document.getElementById('maintenance-reports-container');
+            const governmentReportsTbody = document.getElementById('government-reports-tbody');
+            const modal = document.getElementById('report-modal');
+            const modalContent = document.getElementById('modal-content');
+            const mapModal = document.getElementById('map-modal');
+            const confirmLocationBtn = document.getElementById('confirm-location-btn');
+            const mapCancelBtn = document.getElementById('map-cancel-btn');
+            const authModal = document.getElementById('auth-modal');
+            const authLoginBtn = document.getElementById('auth-login');
+            const authCancelBtn = document.getElementById('auth-cancel');
+            const statusFilter = document.getElementById('statusFilter');
+            const sourceFilter = document.getElementById('sourceFilter');
+            
+            // --- HELPER: CONVERT FILE TO BASE64 FOR API ---
+            const fileToGenerativePart = (file) => {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                        const base64Data = reader.result.split(',')[1];
+                        resolve({
+                            inlineData: {
+                                mimeType: file.type,
+                                data: base64Data
+                            }
+                        });
+                    };
+                    reader.onerror = (err) => reject(err);
+                    reader.readAsDataURL(file);
+                });
+            };
+
+            // --- HELPER: GEOLOCATION DISTANCE ---
+            const getDistanceFromLatLonInKm = (lat1, lon1, lat2, lon2) => {
+                const R = 6371; // Radius of the earth in km
+                const dLat = (lat2 - lat1) * (Math.PI / 180);
+                const dLon = (lon2 - lon1) * (Math.PI / 180);
+                const a =
+                    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                    Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+                    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c; // Distance in km
+            };
+
+            // --- REAL ADVANCED AI ANALYSIS FUNCTION ---
+            const runAdvancedGeminiAnalysis = async (imageFile) => {
+                uploadStatusText.textContent = "Running Advanced AI Analysis...";
+
+                const apiKey = ""; // API key is handled automatically by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                const systemInstruction = {
+                    parts: [{
+                        text: `You are an expert civil engineer AI specializing in road infrastructure assessment in India. Your analysis must be precise, professional, and tailored to Indian road conditions and repair costs. You will receive an image of a road and must return a detailed analysis ONLY in the form of a valid JSON object, without any other text or markdown formatting.`
+                    }]
+                };
+
+                const prompt = `
+                    Carefully analyze the provided image of a road in India. Perform a detailed damage assessment.
+
+                    1.  **Damage Identification:** Identify the primary type of damage and any secondary damage present. Common types include: Pothole, Alligator Cracking, Longitudinal Crack, Transverse Crack, Block Cracking, Raveling, Shoving, or Edge Crack. If no damage is visible, state "None Detected".
+                    2.  **Confidence Score:** Provide your confidence in the damage identification as a percentage (e.g., 98.5).
+                    3.  **Severity Assessment:** Rate the severity of the primary damage on a scale of 1 (minor) to 10 (critical).
+                    4.  **Cost Estimation (in INR):** Provide an itemized cost estimation for the repair. Consider materials (asphalt mix, bitumen, sealant), labor costs typical for Indian cities, and any necessary equipment. The list should be practical for a maintenance team.
+                    5.  **Total Cost (in INR):** Sum the itemized costs to provide a total estimated cost.
+                    6.  **Recommendation:** Write a clear, actionable recommendation for the maintenance team. Suggest a priority level (e.g., "High Priority", "Medium Priority") and a timeline for the repair.
+                    7.  **Bounding Box:** Identify the single most significant area of damage and provide its bounding box coordinates (x, y, w, h). Assume the image dimensions are 800x600 pixels.
+
+                    You MUST respond with ONLY a valid JSON object. Do not include \`\`\`json or any other text. The schema is:
+                    {
+                      "title": "Advanced AI Damage Assessment",
+                      "damageBreakdown": { "primary": "string", "secondary": "string" },
+                      "confidence": number,
+                      "severity": { "value": number, "max": 10 },
+                      "costEstimation": [ { "item": "string", "quantity": "string", "cost": number } ],
+                      "totalCost": number,
+                      "recommendation": "string",
+                      "damageRect": { "x": number, "y": number, "w": number, "h": number }
+                    }
+                `;
+
+                try {
+                    const imagePart = await fileToGenerativePart(imageFile);
+
+                    const payload = {
+                        contents: [{
+                            parts: [
+                                { text: prompt },
+                                imagePart
+                            ]
+                        }],
+                        systemInstruction: systemInstruction,
+                        generationConfig: {
+                            responseMimeType: "application/json",
+                        }
+                    };
+
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API call failed with status: ${response.status}`);
+                    }
+
+                    const result = await response.json();
+                    
+                    if (result.candidates && result.candidates[0] && result.candidates[0].content.parts[0].text) {
+                         const analysisText = result.candidates[0].content.parts[0].text;
+                         const analysis = JSON.parse(analysisText);
+                         return analysis;
+                    } else {
+                        console.error("Unexpected API response structure:", result);
+                        throw new Error("Invalid response from AI model.");
+                    }
+                } catch (error) {
+                    console.error('Error during AI Analysis:', error);
+                    uploadStatusText.textContent = "AI Analysis Failed. Using placeholder data.";
+                    // Fallback to a mock response to avoid breaking the UI
+                    return {
+                        title: "AI Analysis Failed",
+                        damageBreakdown: { primary: "Could not analyze", secondary: "N/A" },
+                        confidence: 0,
+                        severity: { value: 0, max: 10 },
+                        costEstimation: [], totalCost: 0,
+                        recommendation: "Could not generate recommendation. Please try again.",
+                        damageRect: {x: 0, y: 0, w: 0, h: 0}
+                    };
+                }
+            };
+            
+            // --- VIEW & MODAL MANAGEMENT ---
+            const switchView = (role) => {
+                document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === `${role}-view`));
+                currentRole = role;
+                renderContent(role);
+            };
+            const updateView = () => {
+                const role = userRoleSelect.value;
+                if (role === 'tutorial' || role === 'public') {
+                    switchView(role);
+                } else {
+                    requestedRole = role;
+                    openAuthModal(role);
+                }
+            };
+            const openAuthModal = (role) => {
+                const m = document.getElementById('auth-modal');
+                m.querySelector('#auth-title').textContent = `Login for ${role.charAt(0).toUpperCase() + role.slice(1)}`;
+                m.classList.remove('hidden');
+            };
+            const closeAuthModal = () => document.getElementById('auth-modal').classList.add('hidden');
+            const handleLogin = () => {
+                const id = document.getElementById('auth-id').value;
+                const pass = document.getElementById('auth-pass').value;
+                if (authCredentials[requestedRole] && authCredentials[requestedRole].id === id && authCredentials[requestedRole].pass === pass) {
+                    closeAuthModal();
+                    switchView(requestedRole);
+                } else {
+                    const authError = document.getElementById('auth-error');
+                    authError.textContent = 'Invalid credentials.';
+                    authError.classList.remove('hidden');
+                }
+            };
+            const closeModal = () => modal.classList.add('hidden');
+            const openMapModal = () => {
+                mapModal.classList.remove('hidden');
+                setTimeout(initMap, 50);
+            };
+            const closeMapModal = () => {
+                mapModal.classList.add('hidden');
+                if(mapInstance) { mapInstance.remove(); mapInstance = null; }
+            };
+
+            // --- MAP & FILE HANDLING ---
+            const initMap = () => {
+                const coords = [28.4595, 77.0266]; // Gurgaon coordinates
+                mapInstance = L.map('map-container').setView(coords, 13);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OSM' }).addTo(mapInstance);
+                markerInstance = L.marker(coords, { draggable: true }).addTo(mapInstance);
+                mapInstance.on('click', (e) => markerInstance.setLatLng(e.latlng));
+            };
+            const startFileUploadProcess = (event) => {
+                const file = event.target.files[0];
+                if (!file) return;
+                tempFile = file;
+                openMapModal();
+            };
+
+            const processReportSubmission = async (file, latlng) => {
+                if (!file || !latlng) return;
+                uploadStatus.classList.remove('hidden');
+                
+                const analysisResult = await runAdvancedGeminiAnalysis(file);
+                
+                if (!analysisResult || !analysisResult.damageBreakdown) {
+                    console.error("AI Analysis failed to return valid data. Aborting report submission.");
+                    uploadStatus.classList.add('hidden');
+                    console.error("The AI analysis could not be completed. Please try again.");
+                    fileUpload.value = '';
+                    tempFile = null;
+                    return;
+                }
+                
+                // Check for nearby important locations
+                const nearbyPois = [];
+                importantLocations.forEach(loc => {
+                    const distance = getDistanceFromLatLonInKm(latlng.lat, latlng.lng, loc.lat, loc.lng);
+                    if (distance <= 1.5) {
+                        nearbyPois.push(`${loc.name} (${loc.type})`);
+                    }
+                });
+
+                const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
+                const newReport = {
+                    id: newId, userId: 1, 
+                    location: `Near Main Market, Lat: ${latlng.lat.toFixed(5)}, Lng: ${latlng.lng.toFixed(5)}`,
+                    status: 'New', date: new Date().toISOString().split('T')[0],
+                    imageUrl: URL.createObjectURL(file), source: 'public',
+                    nearbyPois: nearbyPois
+                };
+                
+                const newAnalysis = { reportId: newId, ...analysisResult };
+                
+                sampleData.reports.unshift(newReport);
+                sampleData.analysis.unshift(newAnalysis);
+                
+                updateView();
+                uploadStatus.classList.add('hidden');
+                fileUpload.value = '';
+                tempFile = null;
+            };
+
+            // --- UI RENDERING ---
+             const renderContent = (role) => {
+                 if (role === 'public') renderPublicView();
+                 if (role === 'maintenance') renderMaintenanceView(sourceFilter.value);
+                 if (role === 'government') renderGovernmentView(statusFilter.value);
+            };
+            const renderPublicView = () => {
+                publicReportsContainer.innerHTML = '';
+                const userReports = sampleData.reports.filter(r => r.userId === 1);
+                if (userReports.length === 0) {
+                    publicReportsContainer.innerHTML = `<p class="text-center text-slate-500 py-8">Aapne abhi tak koi report nahi bheji hai.</p>`;
+                    return;
+                }
+                userReports.forEach(report => {
+                    const analysis = sampleData.analysis.find(a => a.reportId === report.id);
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-800 p-6 rounded-2xl shadow-lg border border-slate-700 grid md:grid-cols-3 gap-6 cursor-pointer hover:bg-slate-700';
+                    card.onclick = () => openModal(report.id);
+                    card.innerHTML = `
+                        <div class="md:col-span-2">
+                            <p class="text-sm text-slate-500">Report ID #${report.id}</p>
+                            <h3 class="text-lg font-semibold mt-1 text-white">${analysis.damageBreakdown.primary}</h3>
+                            <p class="text-sm text-slate-400">${report.location}</p>
+                            <p class="text-xs text-slate-500 mt-2">Reported on: ${report.date}</p>
+                        </div>
+                        <div class="md:col-span-1 flex items-center">
+                           ${createStatusTracker(report.status)}
+                        </div>
+                    `;
+                    publicReportsContainer.appendChild(card);
+                });
+            };
+
+            const isHighPriorityLocation = (location) => {
+                const keywords = ['hospital', 'school', 'main road', 'market', 'highway', 'cyber hub'];
+                const lowerCaseLocation = location.toLowerCase();
+                return keywords.some(keyword => lowerCaseLocation.includes(keyword));
+            };
+
+            const renderMaintenanceView = (filter = 'all') => {
+                maintenanceReportsContainer.innerHTML = '';
+                document.getElementById('maintenance-title').textContent = 'Prioritized Job List (Location & Severity)';
+                let reports = sampleData.reports;
+                if (filter !== 'all') {
+                    reports = reports.filter(r => r.source === filter);
+                }
+                
+                reports.sort((a, b) => {
+                    const analysisA = sampleData.analysis.find(an => an.reportId === a.id);
+                    const analysisB = sampleData.analysis.find(an => an.reportId === b.id);
+                    
+                    const severityA = analysisA ? analysisA.severity.value : 0;
+                    const severityB = analysisB ? analysisB.severity.value : 0;
+
+                    const locationPriorityA = isHighPriorityLocation(a.location) ? 10 : 0;
+                    const locationPriorityB = isHighPriorityLocation(b.location) ? 10 : 0;
+                    
+                    const poiPriorityA = (a.nearbyPois && a.nearbyPois.length > 0) ? 15 : 0;
+                    const poiPriorityB = (b.nearbyPois && b.nearbyPois.length > 0) ? 15 : 0;
+
+                    const priorityScoreA = severityA + locationPriorityA + poiPriorityA;
+                    const priorityScoreB = severityB + locationPriorityB + poiPriorityB;
+
+                    return priorityScoreB - priorityScoreA;
+                });
+
+                document.getElementById('maintenance-stat-new').textContent = sampleData.reports.filter(r => r.status === 'New').length;
+                document.getElementById('maintenance-stat-review').textContent = sampleData.reports.filter(r => r.status === 'Under Review').length;
+                document.getElementById('maintenance-stat-progress').textContent = sampleData.reports.filter(r => r.status === 'In Progress').length;
+                document.getElementById('maintenance-stat-completed').textContent = sampleData.reports.filter(r => r.status === 'Completed').length;
+
+
+                if (reports.length === 0) {
+                    maintenanceReportsContainer.innerHTML = `<p class="text-center text-slate-500 py-8">Is source ke liye koi report nahi mili.</p>`;
+                    return;
+                }
+
+                reports.forEach(report => {
+                    const analysis = sampleData.analysis.find(a => a.reportId === report.id);
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-700 p-4 rounded-lg border border-slate-600 flex justify-between items-center cursor-pointer hover:bg-slate-600 transition-colors';
+                    card.onclick = () => openModal(report.id);
+                    
+                    const statusColor = {
+                        'New': 'bg-red-800 text-red-100',
+                        'Under Review': 'bg-orange-800 text-orange-100',
+                        'In Progress': 'bg-yellow-800 text-yellow-100',
+                        'Funded': 'bg-teal-800 text-teal-100',
+                        'Completed': 'bg-green-800 text-green-100'
+                    };
+                    
+                    const hasNearbyPoi = report.nearbyPois && report.nearbyPois.length > 0;
+                    const locationIsHighPriority = isHighPriorityLocation(report.location);
+                    const priorityScore = (analysis.severity.value || 0) + (locationIsHighPriority ? 10 : 0) + (hasNearbyPoi ? 15 : 0);
+                    const priorityColorClass = priorityScore > 17 ? 'text-red-400' : priorityScore > 14 ? 'text-orange-400' : 'text-yellow-400';
+
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <div class="flex items-center gap-3 flex-wrap">
+                                ${hasNearbyPoi ? `<span class="text-xs bg-purple-600 text-white font-bold px-2 py-1 rounded-full animate-pulse">High-Priority Area</span>` : ''}
+                                ${analysis.severity.value > 7.5 ? `<span class="text-xs bg-red-600 text-white font-bold px-2 py-1 rounded-full">High Severity</span>` : ''}
+                                <p class="font-semibold text-white">${analysis.damageBreakdown.primary} at ${report.location}</p>
+                            </div>
+                            ${hasNearbyPoi ? `<p class="text-xs text-purple-300 mt-1">Nearby: ${report.nearbyPois.join(', ')}</p>` : ''}
+                            <p class="text-sm text-slate-400 mt-1">Report ID #${report.id} &bull; Date: ${report.date} &bull; Priority Score: <span class="font-bold ${priorityColorClass}">${priorityScore.toFixed(1)}</span></p>
+                        </div>
+                        <span class="text-sm font-medium px-3 py-1 rounded-full ${statusColor[report.status] || 'bg-slate-600'} ml-4 flex-shrink-0">
+                            ${report.status}
+                        </span>
+                    `;
+                    maintenanceReportsContainer.appendChild(card);
+                });
+            };
+            const renderGovernmentView = (filter = 'all') => {
+                governmentReportsTbody.innerHTML = '';
+                let filteredReports = sampleData.reports;
+                if (filter !== 'all') {
+                    filteredReports = sampleData.reports.filter(r => r.status === filter);
+                }
+                
+                if (filteredReports.length === 0) {
+                     governmentReportsTbody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-slate-500">Is status ke saath koi report nahi mili.</td></tr>`;
+                } else {
+                    filteredReports.forEach(report => {
+                        const analysis = sampleData.analysis.find(a => a.reportId === report.id);
+                        const row = document.createElement('tr');
+                        row.className = 'bg-slate-800 border-b border-slate-700 hover:bg-slate-700 cursor-pointer';
+                        row.onclick = () => openModal(report.id);
+                        const statusColor = {
+                            'New': 'bg-red-800 text-red-100',
+                            'Under Review': 'bg-orange-800 text-orange-100',
+                            'In Progress': 'bg-yellow-800 text-yellow-100',
+                            'Funded': 'bg-teal-800 text-teal-100',
+                            'Completed': 'bg-green-800 text-green-100'
+                        };
+                        row.innerHTML = `
+                            <td class="px-6 py-4 font-medium text-white">#${report.id}</td>
+                            <td class="px-6 py-4">${report.location}</td>
+                            <td class="px-6 py-4">${analysis.damageBreakdown.primary}</td>
+                            <td class="px-6 py-4"><span class="text-xs font-medium px-2.5 py-1 rounded-full ${statusColor[report.status] || 'bg-slate-600'}">${report.status}</span></td>
+                            <td class="px-6 py-4">${report.date}</td>
+                        `;
+                        governmentReportsTbody.appendChild(row);
+                    });
+                }
+                renderDamageChart();
+            };
+            
+            const renderDamageChart = () => {
+                 const ctx = document.getElementById('damageTypeChart').getContext('2d');
+                const damageCounts = sampleData.analysis.reduce((acc, curr) => {
+                    const primaryDamage = curr.damageBreakdown.primary;
+                    if(primaryDamage && primaryDamage !== "Could not analyze"){
+                       acc[primaryDamage] = (acc[primaryDamage] || 0) + 1;
+                    }
+                    return acc;
+                }, {});
+
+                const labels = Object.keys(damageCounts);
+                const data = Object.values(damageCounts);
+                
+                if (damageChartInstance) {
+                    damageChartInstance.destroy();
+                }
+
+                damageChartInstance = new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Damage Types',
+                            data: data,
+                            backgroundColor: ['rgba(239, 68, 68, 0.8)', 'rgba(245, 158, 11, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(16, 185, 129, 0.8)', 'rgba(139, 92, 246, 0.8)'],
+                            borderColor: '#1e293b',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', labels: { color: 'white' } }
+                        }
+                    }
+                });
+            };
+            const createStatusTracker = (status) => {
+                const idx = statusSteps.indexOf(status);
+                let html = '<ol class="relative text-slate-400 border-s border-slate-600 ml-2">';
+                statusSteps.forEach((step, i) => {
+                    const done = i < idx, curr = i === idx;
+                    html += `<li class="mb-8 ms-6"><span class="absolute flex items-center justify-center w-5 h-5 ${done ? 'bg-green-600' : curr ? 'bg-blue-600 animate-pulse' : 'bg-slate-700'} rounded-full -start-2.5"></span><h3 class="${done ? 'text-green-400' : curr ? 'text-blue-400' : ''}">${step}</h3></li>`;
+                });
+                return html + '</ol>';
+            };
+
+            // --- GEMINI API: GENERATE WORK ORDER ---
+            const generateWorkOrder = async (report, analysis) => {
+                const workOrderOutput = document.getElementById('work-order-output');
+                const workOrderBtn = document.getElementById('generateWorkOrderBtn');
+                
+                workOrderBtn.disabled = true;
+                workOrderOutput.innerHTML = `<div class="flex justify-center items-center p-4"><span class="animate-spin h-5 w-5 mr-3 border-t-2 border-b-2 border-yellow-500 rounded-full"></span><span>AI Work Order taiyaar kar raha hai...</span></div>`;
+
+                const apiKey = ""; // API key is handled automatically by the environment
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+
+                const reportData = {
+                    id: report.id,
+                    location: report.location,
+                    damage: analysis.damageBreakdown,
+                    severity: analysis.severity.value,
+                    recommendation: analysis.recommendation,
+                    cost: analysis.totalCost
+                };
+                
+                const issueDate = '19 September 2025';
+
+                const prompt = `
+                    Act as a civil works supervisor for a municipal road maintenance department in India. 
+                    Based on the following data, generate a formal and detailed work order. 
+                    The response should be plain text, using markdown-style headings (e.g., #### Heading) and lists (e.g., * Item 1). 
+                    Use Hindi (Latin script) for headings and key terms where appropriate (e.g., 'Kaam ka Vivaran' for Scope of Work).
+                    
+                    The work order must include these sections:
+                    - #### Work Order ID: Use the format WO-${report.id}.
+                    - #### Location
+                    - #### Issue Date: Use exactly: ${issueDate}.
+                    - #### Priority: Determine a priority level (Urgent, High, Medium, Low) based on the severity value (e.g., >8 is Urgent, >6 is High).
+                    - #### Damage Details: Briefly describe the primary and secondary damage.
+                    - #### Kaam ka Vivaran (Scope of Work): Provide a clear, step-by-step plan for the repair.
+                    - #### Zaroori Samagri (Materials Required): Be specific about materials based on the damage type and cost estimation provided.
+                    - #### Suraksha Nirdesh (Safety Precautions): Include standard safety protocols like traffic cones, barricades, and Personal Protective Equipment (PPE) for workers.
+                    - #### Anumanit Samay (Estimated Duration): Estimate the time required for the repair in hours or days based on the scope.
+
+                    Report Data:
+                    ${JSON.stringify(reportData)}
+                `;
+                
+                try {
+                    const payload = { contents: [{ parts: [{ text: prompt }] }] };
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) throw new Error(`API Error: ${response.status}`);
+                    
+                    const result = await response.json();
+                    let generatedText = result.candidates[0].content.parts[0].text;
+
+                    // Simple markdown to HTML conversion
+                    generatedText = generatedText
+                        .replace(/#### (.*)/g, '<h4>$1</h4>')
+                        .replace(/\* (.*)/g, '<li>$1</li>')
+                        .replace(/(\r\n|\n|\r)/g, '<br>');
+
+                    // Wrap lists in <ul> tags
+                    if(generatedText.includes('<li>')){
+                        // A regex to find all list items following a heading and wrap them in a <ul> tag
+                        generatedText = generatedText.replace(/(<h4>.*?<\/h4>(?:<br>)*)((<li>.*?<\/li>(?:<br>)*)+)/g, (match, p1, p2) => {
+                            const listItems = p2.replace(/<br>/g, '');
+                            return `${p1}<ul>${listItems}</ul>`;
+                        });
+                    }
+                    
+                    workOrderOutput.innerHTML = `<div class="work-order-content p-4 bg-slate-900 rounded-lg border border-slate-700">${generatedText}</div>`;
+
+                } catch(error) {
+                    console.error("Failed to generate work order:", error);
+                    workOrderOutput.innerHTML = `<p class="text-red-400 text-center p-4">Work order generate karne mein samasya aa gayi. Kripya dobara koshish karein.</p>`;
+                } finally {
+                    workOrderBtn.disabled = false;
+                }
+            };
+
+
+            // --- OPEN REPORT MODAL ---
+            const openModal = (reportId) => {
+                const report = sampleData.reports.find(r => r.id === reportId);
+                const analysis = sampleData.analysis.find(a => a.reportId === reportId);
+                if (!report || !analysis) return;
+
+                const severityColor = analysis.severity.value > 7 ? 'bg-red-500' : analysis.severity.value > 4 ? 'bg-yellow-500' : 'bg-green-500';
+                
+                let actionsHtml = '';
+                if (currentRole === 'maintenance') {
+                    actionsHtml += `<div class="mt-6"><button id="generateWorkOrderBtn" class="w-full bg-yellow-500 text-slate-900 px-4 py-2 rounded-lg font-semibold hover:bg-yellow-600 flex items-center justify-center gap-2">✨ Generate Work Order</button></div><div id="work-order-output" class="mt-4"></div>`;
+                    if (report.status === 'New') {
+                        actionsHtml += `<div class="mt-4"><button id="verifyBtn" class="w-full bg-blue-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-700">Verify & Forward to Govt</button></div>`;
+                    } else if (report.status === 'Funded') {
+                        actionsHtml += `
+                            <div class="mt-4 p-3 bg-slate-900 rounded-lg border border-slate-700">
+                                <label for="updateStatus" class="block text-sm font-medium text-slate-300 mb-2">Update Job Status</label>
+                                <div class="flex gap-2">
+                                    <select id="updateStatus" class="flex-grow bg-slate-700 text-slate-100 border-slate-600 rounded-lg p-2 text-sm">
+                                        <option value="In Progress">In Progress</option>
+                                        <option value="Completed">Completed</option>
+                                    </select>
+                                    <button id="saveStatusBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-semibold hover:bg-blue-700">Save</button>
+                                </div>
+                            </div>`;
+                    }
+                } else if (currentRole === 'government' && report.status === 'Under Review') {
+                    actionsHtml = `<div class="mt-4"><button id="fundBtn" class="w-full bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700">Approve for Funding</button></div>`;
+                }
+
+
+                modalContent.innerHTML = `
+                    <div class="p-6">
+                        <div class="flex justify-between items-start">
+                             <div>
+                                 <h2 class="text-2xl font-bold text-white">${analysis.title || `Report #${report.id}`}</h2>
+                                 <p class="text-slate-400">${report.location}</p>
+                             </div>
+                             <button id="close-modal-btn" class="text-slate-400 text-3xl">&times;</button>
+                        </div>
+                    </div>
+                    <div class="p-6 border-t border-b border-slate-700 bg-slate-900">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <!-- Left Column: Analysis -->
+                            <div>
+                                <h3 class="text-lg font-semibold mb-4 text-white">Assessment Details</h3>
+                                <div class="space-y-4 text-sm">
+                                    <div class="p-3 bg-slate-800 rounded-lg">
+                                        <p class="font-semibold text-slate-300">Damage Breakdown</p>
+                                        <p><span class="text-slate-400">Primary:</span> ${analysis.damageBreakdown.primary}</p>
+                                        <p><span class="text-slate-400">Secondary:</span> ${analysis.damageBreakdown.secondary}</p>
+                                    </div>
+                                    <div class="p-3 bg-slate-800 rounded-lg">
+                                        <p class="font-semibold text-slate-300">Severity Index: <span class="text-white font-bold">${analysis.severity.value} / ${analysis.severity.max}</span></p>
+                                        <div class="w-full bg-slate-700 rounded-full h-2.5 mt-2">
+                                            <div class="${severityColor} h-2.5 rounded-full" style="width: ${analysis.severity.value / analysis.severity.max * 100}%"></div>
+                                        </div>
+                                    </div>
+                                     <div class="p-3 bg-slate-800 rounded-lg">
+                                        <p class="font-semibold text-slate-300">AI Confidence</p>
+                                        <p class="text-2xl font-bold text-blue-400">${analysis.confidence}%</p>
+                                    </div>
+                                </div>
+                                
+                                <h3 class="text-lg font-semibold mt-6 mb-4 text-white">Itemized Cost Estimation</h3>
+                                <table class="w-full text-sm text-left">
+                                    <thead class="text-xs text-slate-400 uppercase"><tr class="border-b border-slate-700"><th class="py-2">Item</th><th>Quantity</th><th class="text-right">Cost</th></tr></thead>
+                                    <tbody class="text-slate-300">
+                                        ${analysis.costEstimation.map(item => `<tr class="border-b border-slate-700"><td class="py-2">${item.item}</td><td>${item.quantity}</td><td class="text-right">₹${item.cost.toLocaleString('en-IN')}</td></tr>`).join('')}
+                                        <tr class="font-bold"><td class="py-2">Total</td><td></td><td class="text-right">₹${analysis.totalCost.toLocaleString('en-IN')}</td></tr>
+                                    </tbody>
+                                </table>
+                                 ${actionsHtml}
+                            </div>
+                            <!-- Right Column: Image & Status -->
+                            <div>
+                                <div class="relative mb-6">
+                                    <img src="${report.imageUrl}" alt="Road Damage" class="rounded-lg w-full h-auto object-cover border border-slate-700 shadow-xl">
+                                    <div class="absolute border-2 border-red-500 bg-red-500 bg-opacity-25" style="left:${analysis.damageRect.x/800*100}%;top:${analysis.damageRect.y/600*100}%;width:${analysis.damageRect.w/800*100}%;height:${analysis.damageRect.h/600*100}%;"></div>
+                                </div>
+                                <h3 class="text-lg font-semibold mb-4 text-white">Status History</h3>
+                                ${createStatusTracker(report.status)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                modal.classList.remove('hidden');
+
+                // Add event listeners for new buttons
+                const setStatus = (newStatus) => {
+                    const reportToUpdate = sampleData.reports.find(r => r.id === reportId);
+                    if (reportToUpdate) reportToUpdate.status = newStatus;
+                    closeModal();
+                    updateView();
+                };
+
+                document.getElementById('close-modal-btn').addEventListener('click', closeModal);
+                document.getElementById('verifyBtn')?.addEventListener('click', () => setStatus('Under Review'));
+                document.getElementById('fundBtn')?.addEventListener('click', () => setStatus('Funded'));
+                document.getElementById('saveStatusBtn')?.addEventListener('click', () => {
+                    const newStatus = document.getElementById('updateStatus').value;
+                    setStatus(newStatus);
+                });
+                document.getElementById('generateWorkOrderBtn')?.addEventListener('click', () => generateWorkOrder(report, analysis));
+
+            };
+
+            // --- EVENT LISTENERS ---
+            userRoleSelect.addEventListener('change', updateView);
+            fileUpload.addEventListener('change', startFileUploadProcess);
+            confirmLocationBtn.addEventListener('click', () => { const latlng = markerInstance.getLatLng(); closeMapModal(); processReportSubmission(tempFile, latlng); });
+            mapCancelBtn.addEventListener('click', () => { fileUpload.value = ''; tempFile = null; closeMapModal(); });
+            document.getElementById('modal-backdrop').addEventListener('click', closeModal);
+            authLoginBtn.addEventListener('click', handleLogin);
+            authCancelBtn.addEventListener('click', closeAuthModal);
+            statusFilter.addEventListener('change', (e) => renderGovernmentView(e.target.value));
+            sourceFilter.addEventListener('change', (e) => renderMaintenanceView(e.target.value));
+            
+            // Initial call
+            updateView();
+        });
+    </script>
+</body>
+</html>
