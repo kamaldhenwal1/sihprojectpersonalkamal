@@ -360,7 +360,10 @@
                         body: JSON.stringify({ contents: [{ parts: [ { text: prompt }, imagePart ] }], systemInstruction, generationConfig: { responseMimeType: "application/json" }})
                     });
                     
-                    if (!response.ok) throw new Error(`API failed: ${response.statusText}`);
+                    if (!response.ok) {
+                        console.warn(`API returned status: ${response.status}. Falling back to simulation.`);
+                        throw new Error(`API failed: ${response.statusText}`);
+                    }
                     
                     const result = await response.json();
                     let rawText = result.candidates[0].content.parts[0].text;
@@ -375,8 +378,15 @@
                     
                     return JSON.parse(rawText);
                 } catch (error) {
-                    console.error('AI Error:', error);
-                    return null; // Return null so the calling function can handle the failure gracefully
+                    console.error('AI Error (Using Fallback Data):', error);
+                    // FALLBACK DATA WHEN API LIMIT IS REACHED
+                    return {
+                        title: "AI Analysis (Demo Mode)",
+                        damageBreakdown: { primary: "Simulated Pothole Damage", secondary: "Surface Wear" },
+                        confidence: 85.0, severity: { value: 6.5, max: 10 },
+                        costEstimation: [ { item: "Asphalt Patch (Demo)", quantity: "1.5 cu ft", cost: 1500 }, { item: "Labor (Demo)", quantity: "1.5 hrs", cost: 1200 } ],
+                        totalCost: 2700, recommendation: "API Limit Exceeded. Showing simulated data. Repair is recommended.", damageRect: {x: 300, y: 200, w: 200, h: 150}
+                    };
                 }
             };
             
@@ -471,6 +481,11 @@
                     setTimeout(() => uploadStatus.classList.add('hidden'), 4000);
                     fileUpload.value = ''; tempFile = null;
                     return; 
+                }
+
+                if(aiResult.title.includes("Demo Mode")) {
+                     uploadStatusText.innerHTML = `<span class="text-orange-500 font-bold">API Limit Reached. Using Demo Data.</span>`;
+                     await new Promise(r => setTimeout(r, 1500)); // Briefly show the demo warning
                 }
                 
                 const nearbyPois = importantLocations.filter(loc => getDistanceFromLatLonInKm(latlng.lat, latlng.lng, loc.lat, loc.lng) <= 1.5).map(l => `${l.name} (${l.type})`);
@@ -646,11 +661,24 @@
                 
                 try {
                     const res = await fetch(apiUrl, { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({contents:[{parts:[{text:prompt}]}]}) });
+                    if (!res.ok) throw new Error("API Limit");
                     const txt = (await res.json()).candidates[0].content.parts[0].text;
                     const html = txt.replace(/#### (.*)/g, '<h4 class="font-bold text-slate-900 mt-4 mb-2">$1</h4>').replace(/\* (.*)/g, '<li class="ml-4 list-disc text-slate-700">$1</li>').replace(/\n/g,'<br>');
                     woOut.innerHTML = `<div class="bg-white/60 backdrop-blur border border-slate-200 p-6 rounded-2xl shadow-sm text-sm">${html}</div>`;
                 } catch(e) {
-                    woOut.innerHTML = `<p class="text-red-500 bg-red-50 p-4 rounded-xl text-sm font-medium">Failed to generate Work Order. Please check Network or API Limits.</p>`;
+                    // FALLBACK WORK ORDER WHEN API FAILS
+                    const mockHtml = `
+                        <h4 class="font-bold text-slate-900 mt-4 mb-2">Work Order ID: WO-${report.id} (Demo Mode)</h4>
+                        <p class="text-slate-700"><strong>Location:</strong> ${report.location}</p>
+                        <p class="text-slate-700"><strong>Priority:</strong> High (Simulated)</p>
+                        <h4 class="font-bold text-slate-900 mt-4 mb-2">Kaam ka Vivaran (Scope of Work)</h4>
+                        <li class="ml-4 list-disc text-slate-700">Area ko clean aur barricade karein.</li>
+                        <li class="ml-4 list-disc text-slate-700">Damaged surface ko mill/cut karein.</li>
+                        <li class="ml-4 list-disc text-slate-700">Naya material fill karke compact karein.</li>
+                        <h4 class="font-bold text-slate-900 mt-4 mb-2">Anumanit Samay (Estimated Time)</h4>
+                        <p class="text-slate-700">1-2 Din (API Limit Reached - Offline Generation)</p>
+                    `;
+                    woOut.innerHTML = `<div class="bg-white/60 backdrop-blur border border-slate-200 p-6 rounded-2xl shadow-sm text-sm border-l-4 border-l-orange-500">${mockHtml}</div>`;
                 } finally { btn.disabled = false; }
             };
 
