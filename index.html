@@ -377,17 +377,23 @@
                 try {
                     const imagePart = await fileToGenerativePart(imageFile);
                     const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, imagePart] }] }) });
-                    if (!response.ok) throw new Error("API Limit");
+                    
+                    if (!response.ok) {
+                        const errorDetails = await response.json();
+                        console.error("Google API Real Error:", errorDetails);
+                        throw new Error(errorDetails.error?.message || "API Failed");
+                    }
                     
                     const result = await response.json();
                     let rawText = result.candidates[0].content.parts[0].text;
                     rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
                     return JSON.parse(rawText);
                 } catch (error) {
+                    console.error("Upload Catch Block:", error);
                     // DEMO FALLBACK if API fails
-                    document.getElementById('upload-status-text').innerHTML = "<span class='text-orange-500'>API Limit Reached. Using Demo Data.</span>";
+                    document.getElementById('upload-status-text').innerHTML = "<span class='text-orange-500'>API Error (Check Console). Using Demo.</span>";
                     await new Promise(r => setTimeout(r, 1500));
-                    return { title: "Demo Assessment (API Quota Exceeded)", damageBreakdown: { primary: "Simulated Pothole", secondary: "Surface Wear" }, confidence: 88, severity: { value: 7.5, max: 10 }, costEstimation: [ { item: "Demo Repair", quantity: "1 unit", cost: 1500 } ], totalCost: 1500, recommendation: "Simulated response due to API quota limits.", damageRect: {x: 100, y: 100, w: 200, h: 200} };
+                    return { title: "Demo Assessment (API Quota Exceeded)", damageBreakdown: { primary: "Simulated Pothole", secondary: "Surface Wear" }, confidence: 88, severity: { value: 7.5, max: 10 }, costEstimation: [ { item: "Demo Repair", quantity: "1 unit", cost: 1500 } ], totalCost: 1500, recommendation: "Simulated response due to API error.", damageRect: {x: 100, y: 100, w: 200, h: 200} };
                 }
             };
 
@@ -450,14 +456,23 @@
                 const statBox = document.getElementById('upload-status'); statBox.classList.remove('hidden');
                 document.getElementById('upload-status-text').innerHTML = "AI Vision processing image...";
                 
-                const analysis = await runAdvancedGeminiAnalysis(tempFile);
-                const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
-                
-                sampleData.reports.unshift({ id: newId, userId: 1, location: `Lat: ${latlng.lat.toFixed(4)}, Lng: ${latlng.lng.toFixed(4)}`, status: 'New', date: new Date().toISOString().split('T')[0], imageUrl: URL.createObjectURL(tempFile), source: 'public', nearbyPois: [] });
-                sampleData.analysis.unshift({ reportId: newId, ...analysis });
-                
-                renderPublicView();
-                statBox.classList.add('hidden'); document.getElementById('file-upload').value = ''; tempFile = null;
+                try {
+                    const analysis = await runAdvancedGeminiAnalysis(tempFile);
+                    const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
+                    
+                    sampleData.reports.unshift({ id: newId, userId: 1, location: `Lat: ${latlng.lat.toFixed(4)}, Lng: ${latlng.lng.toFixed(4)}`, status: 'New', date: new Date().toISOString().split('T')[0], imageUrl: URL.createObjectURL(tempFile), source: 'public', nearbyPois: [] });
+                    sampleData.analysis.unshift({ reportId: newId, ...analysis });
+                    
+                    renderPublicView();
+                    statBox.classList.add('hidden'); document.getElementById('file-upload').value = ''; tempFile = null;
+                } catch (error) {
+                    // Agar error aaya to demo data ki jagah red text me error dikhao aur process rok do
+                    console.error("Analysis Failed:", error);
+                    document.getElementById('upload-status-text').innerHTML = `<span class='text-red-500 font-bold'>Error: ${error.message}</span>`;
+                    setTimeout(() => {
+                        statBox.classList.add('hidden'); document.getElementById('file-upload').value = ''; tempFile = null;
+                    }, 4000); // 4 second baad error hata do
+                }
             });
 
             // --- RENDERING ---
