@@ -307,8 +307,7 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            /* 
-             * ==========================================
+            /* * ==========================================
              * YAHAN APNI API KEY DAALEIN
              * ==========================================
              */
@@ -371,7 +370,9 @@
             // --- PURE API CALL (NO DEMO FALLBACK) ---
             const runAdvancedGeminiAnalysis = async (imageFile) => {
                 document.getElementById('upload-status-text').innerHTML = "<span class='text-blue-700'>AI Vision processing image...</span>";
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+                
+                // Yahan gemini-1.5-flash ko gemini-1.5-flash-latest me badla gaya hai
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
                 
                 const prompt = `Analyze this road image from India. Output ONLY valid JSON, no markdown formatting.
                 { "title": "AI Damage Assessment", "damageBreakdown": { "primary": "string", "secondary": "string" }, "confidence": number, "severity": { "value": number, "max": 10 }, "costEstimation": [ { "item": "string", "quantity": "string", "cost": number } ], "totalCost": number, "recommendation": "string", "damageRect": { "x": 100, "y": 100, "w": 200, "h": 200 } }`;
