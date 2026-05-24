@@ -65,19 +65,17 @@
         #welcome-screen {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background-color: #0f172a; /* Dark background for intro */
+            background-color: #0f172a;
             display: flex; flex-direction: column; align-items: center; justify-content: center;
             z-index: 9999;
-            transition: transform 1s cubic-bezier(0.65, 0, 0.35, 1); /* Smooth slide up out */
+            transition: transform 1s cubic-bezier(0.65, 0, 0.35, 1);
         }
-        .intro-slide-up {
-            transform: translateY(-100%);
-        }
+        .intro-slide-up { transform: translateY(-100%); }
 
         #app {
             opacity: 0;
-            transform: translateY(80px); /* Start below */
-            transition: opacity 1s ease, transform 1s cubic-bezier(0.25, 1, 0.5, 1); /* Smooth slide up in */
+            transform: translateY(80px);
+            transition: opacity 1s ease, transform 1s cubic-bezier(0.25, 1, 0.5, 1);
         }
         .app-visible {
             opacity: 1 !important;
@@ -309,8 +307,13 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            // HARDCODED API KEY AS REQUESTED BY USER
-            const GEMINI_API_KEY = "AIzaSyCsvjbdxXsZYzl1zdjcPg8DeaxmoOF2XSU"; 
+            /* 
+             * ==========================================
+             * YAHAN APNI API KEY DAALEIN
+             * ==========================================
+             */
+            const GEMINI_API_KEY = "AIzaSyCzyTRSU-Z4o2pyL8fgJ9IKa8tRQHtydeI"; 
+
 
             // --- DATA & STATE ---
             const sampleData = {
@@ -328,73 +331,68 @@
                 ]
             };
             
-            // USER REQUESTED CREDENTIALS
             const authCredentials = { 'maintenance': { id: 'id', pass: 'kamal' }, 'government': { id: 'id', pass: 'kamal' } };
-            
             const statusSteps = ['New', 'Under Review', 'Funded', 'In Progress', 'Completed'];
-            const importantLocations = [ { name: "City Hospital", type: "Hospital", lat: 28.4630, lng: 77.0260 }, { name: "Cyber Park", type: "Busy Area", lat: 28.4590, lng: 77.0390 } ];
             let damageChartInstance = null;
             let currentRole = 'public';
             let requestedRole = '';
             let tempFile = null; let mapInstance = null; let markerInstance = null;
 
-            // --- ANIMATION ENTRY LOGIC (FIXED) ---
+            // --- ANIMATION ENTRY LOGIC ---
             const runEntryAnimation = () => {
                 const welcomeScreen = document.getElementById('welcome-screen');
                 const appMain = document.getElementById('app');
                 const bodyMain = document.getElementById('body-main');
 
-                // Render public view initially silently
                 document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
                 document.getElementById('public-view').classList.add('active');
                 renderPublicView();
 
-                // Wait 2.5 seconds, then slide intro up, and slide app up
                 setTimeout(() => {
                     welcomeScreen.classList.add('intro-slide-up');
                     appMain.classList.add('app-visible');
-                    bodyMain.classList.remove('overflow-hidden'); // Allow scrolling
+                    bodyMain.classList.remove('overflow-hidden');
 
-                    // Force elements in active view to show up after transition starts
                     setTimeout(() => {
                         document.querySelectorAll('.view.active .reveal').forEach(el => el.classList.add('active'));
-                        welcomeScreen.style.display = 'none'; // Completely remove from flow
-                    }, 1000); // Wait for the 1s slide animation to finish
+                        welcomeScreen.style.display = 'none';
+                    }, 1000); 
                 }, 2500);
             };
 
             // --- HELPER: FILE TO BASE64 ---
-            const fileToGenerativePart = (file) => new Promise((res, rej) => { const reader = new FileReader(); reader.onloadend = () => res({ inlineData: { mimeType: file.type, data: reader.result.split(',')[1] }}); reader.onerror = rej; reader.readAsDataURL(file); });
+            const fileToGenerativePart = (file) => new Promise((res, rej) => { 
+                const reader = new FileReader(); 
+                reader.onloadend = () => res({ inlineData: { mimeType: file.type, data: reader.result.split(',')[1] }}); 
+                reader.onerror = rej; 
+                reader.readAsDataURL(file); 
+            });
 
-            // --- AI ANALYSIS FUNCTION ---
+            // --- PURE API CALL (NO DEMO FALLBACK) ---
             const runAdvancedGeminiAnalysis = async (imageFile) => {
-                document.getElementById('upload-status-text').textContent = "AI Vision processing image...";
+                document.getElementById('upload-status-text').innerHTML = "<span class='text-blue-700'>AI Vision processing image...</span>";
                 const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
                 
                 const prompt = `Analyze this road image from India. Output ONLY valid JSON, no markdown formatting.
                 { "title": "AI Damage Assessment", "damageBreakdown": { "primary": "string", "secondary": "string" }, "confidence": number, "severity": { "value": number, "max": 10 }, "costEstimation": [ { "item": "string", "quantity": "string", "cost": number } ], "totalCost": number, "recommendation": "string", "damageRect": { "x": 100, "y": 100, "w": 200, "h": 200 } }`;
 
-                try {
-                    const imagePart = await fileToGenerativePart(imageFile);
-                    const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, imagePart] }] }) });
-                    
-                    if (!response.ok) {
-                        const errorDetails = await response.json();
-                        console.error("Google API Real Error:", errorDetails);
-                        throw new Error(errorDetails.error?.message || "API Failed");
-                    }
-                    
-                    const result = await response.json();
-                    let rawText = result.candidates[0].content.parts[0].text;
-                    rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
-                    return JSON.parse(rawText);
-                } catch (error) {
-                    console.error("Upload Catch Block:", error);
-                    // DEMO FALLBACK if API fails
-                    document.getElementById('upload-status-text').innerHTML = "<span class='text-orange-500'>API Error (Check Console). Using Demo.</span>";
-                    await new Promise(r => setTimeout(r, 1500));
-                    return { title: "Demo Assessment (API Quota Exceeded)", damageBreakdown: { primary: "Simulated Pothole", secondary: "Surface Wear" }, confidence: 88, severity: { value: 7.5, max: 10 }, costEstimation: [ { item: "Demo Repair", quantity: "1 unit", cost: 1500 } ], totalCost: 1500, recommendation: "Simulated response due to API error.", damageRect: {x: 100, y: 100, w: 200, h: 200} };
+                const imagePart = await fileToGenerativePart(imageFile);
+                const response = await fetch(apiUrl, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, imagePart] }] }) 
+                });
+                
+                if (!response.ok) {
+                    const errorDetails = await response.json();
+                    console.error("API Error Details:", errorDetails);
+                    throw new Error(errorDetails.error?.message || "Google API Failed to respond.");
                 }
+                
+                const result = await response.json();
+                let rawText = result.candidates[0].content.parts[0].text;
+                rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+                return JSON.parse(rawText);
             };
 
             // --- VIEW MANAGEMENT & MODALS ---
@@ -410,7 +408,6 @@
                 newView.classList.add('active');
                 currentRole = role;
                 renderContent(role);
-                // Trigger reveal for new view
                 setTimeout(() => newView.querySelectorAll('.reveal').forEach((el, i) => setTimeout(() => el.classList.add('active'), i * 100)), 50);
             };
 
@@ -452,30 +449,40 @@
             };
 
             document.getElementById('confirm-location-btn').addEventListener('click', async () => {
-                const latlng = markerInstance.getLatLng(); toggleModal('map-modal', false);
-                const statBox = document.getElementById('upload-status'); statBox.classList.remove('hidden');
-                document.getElementById('upload-status-text').innerHTML = "AI Vision processing image...";
+                const latlng = markerInstance.getLatLng(); 
+                toggleModal('map-modal', false);
+                
+                const statBox = document.getElementById('upload-status'); 
+                statBox.classList.remove('hidden');
+                document.getElementById('upload-status-text').innerHTML = "<span class='text-blue-700'>AI Vision processing image...</span>";
                 
                 try {
+                    // Yahan seedha API Call Hogi
                     const analysis = await runAdvancedGeminiAnalysis(tempFile);
-                    const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
                     
+                    const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
                     sampleData.reports.unshift({ id: newId, userId: 1, location: `Lat: ${latlng.lat.toFixed(4)}, Lng: ${latlng.lng.toFixed(4)}`, status: 'New', date: new Date().toISOString().split('T')[0], imageUrl: URL.createObjectURL(tempFile), source: 'public', nearbyPois: [] });
                     sampleData.analysis.unshift({ reportId: newId, ...analysis });
                     
                     renderPublicView();
-                    statBox.classList.add('hidden'); document.getElementById('file-upload').value = ''; tempFile = null;
+                    statBox.classList.add('hidden'); 
+                    document.getElementById('file-upload').value = ''; 
+                    tempFile = null;
+
                 } catch (error) {
-                    // Agar error aaya to demo data ki jagah red text me error dikhao aur process rok do
-                    console.error("Analysis Failed:", error);
-                    document.getElementById('upload-status-text').innerHTML = `<span class='text-red-500 font-bold'>Error: ${error.message}</span>`;
+                    // Agar API fail hui (Limit khatam ya koi issue), toh seedha Error dikhega, Koi fake report nahi banegi.
+                    console.error("Actual Process Failed:", error);
+                    document.getElementById('upload-status-text').innerHTML = `<span class='text-red-600 font-bold'>Error: ${error.message}</span>`;
+                    
                     setTimeout(() => {
-                        statBox.classList.add('hidden'); document.getElementById('file-upload').value = ''; tempFile = null;
-                    }, 4000); // 4 second baad error hata do
+                        statBox.classList.add('hidden'); 
+                        document.getElementById('file-upload').value = ''; 
+                        tempFile = null;
+                    }, 4000);
                 }
             });
 
-            // --- RENDERING ---
+            // --- RENDERING VIEWS ---
             const renderContent = (role) => {
                 if (role === 'public') renderPublicView();
                 if (role === 'maintenance') renderMaintenanceView(document.getElementById('sourceFilter').value);
@@ -511,7 +518,6 @@
                 const cont = document.getElementById('maintenance-reports-container'); cont.innerHTML = '';
                 let reps = sampleData.reports; if(filter !== 'all') reps = reps.filter(r => r.source === filter);
                 
-                // Update stats
                 document.getElementById('maintenance-stat-new').innerText = sampleData.reports.filter(r=>r.status==='New').length;
                 document.getElementById('maintenance-stat-review').innerText = sampleData.reports.filter(r=>r.status==='Under Review').length;
                 document.getElementById('maintenance-stat-progress').innerText = sampleData.reports.filter(r=>r.status==='In Progress').length;
@@ -551,7 +557,6 @@
                     tb.appendChild(tr);
                 });
 
-                // Chart
                 if(damageChartInstance) damageChartInstance.destroy();
                 const counts = sampleData.analysis.reduce((acc, curr) => { acc[curr.damageBreakdown.primary] = (acc[curr.damageBreakdown.primary]||0)+1; return acc; }, {});
                 damageChartInstance = new Chart(document.getElementById('damageTypeChart'), { type: 'doughnut', data: { labels: Object.keys(counts), datasets: [{ data: Object.values(counts), backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981'], borderWidth: 0 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } } });
@@ -564,8 +569,12 @@
             const openReportModal = (id) => {
                 const rep = sampleData.reports.find(r => r.id === id); const an = sampleData.analysis.find(a => a.reportId === id);
                 let actions = '';
-                if(currentRole === 'maintenance' && rep.status === 'New') actions = `<button id="btn-verify" class="w-full mt-4 bg-blue-600 text-white font-bold py-2 rounded-xl">Verify & Send to Govt</button><button id="btn-wo" class="w-full mt-2 bg-slate-800 text-white font-bold py-2 rounded-xl">Generate Work Order (Demo)</button><div id="wo-out" class="mt-2 text-sm text-slate-600 hidden p-3 bg-slate-100 rounded-lg border border-slate-200">WORK ORDER DEMO:<br>- Priority: High<br>- Task: Fill Pothole<br>- Material: Asphalt</div>`;
-                if(currentRole === 'government' && rep.status === 'Under Review') actions = `<button id="btn-fund" class="w-full mt-4 bg-green-600 text-white font-bold py-2 rounded-xl shadow-lg shadow-green-500/30">Approve Funds (₹${an.totalCost.toLocaleString('en-IN')})</button>`;
+                if(currentRole === 'maintenance' && rep.status === 'New') {
+                    actions = `<button id="btn-verify" class="w-full mt-4 bg-blue-600 text-white font-bold py-2 rounded-xl">Verify & Send to Govt</button>`;
+                }
+                if(currentRole === 'government' && rep.status === 'Under Review') {
+                    actions = `<button id="btn-fund" class="w-full mt-4 bg-green-600 text-white font-bold py-2 rounded-xl shadow-lg shadow-green-500/30">Approve Funds (₹${an.totalCost.toLocaleString('en-IN')})</button>`;
+                }
                 
                 let timeline = `<div class="flex items-center gap-1 mt-2">`;
                 statusSteps.forEach((s, i) => { const idx = statusSteps.indexOf(rep.status); timeline += `<div class="h-2 flex-1 rounded-full ${i <= idx ? 'bg-blue-500' : 'bg-slate-200'}"></div>`; });
@@ -604,10 +613,9 @@
                 const updateStat = (s) => { rep.status = s; toggleModal('report-modal', false); renderContent(currentRole); };
                 if(document.getElementById('btn-verify')) document.getElementById('btn-verify').onclick = () => updateStat('Under Review');
                 if(document.getElementById('btn-fund')) document.getElementById('btn-fund').onclick = () => updateStat('Funded');
-                if(document.getElementById('btn-wo')) document.getElementById('btn-wo').onclick = () => document.getElementById('wo-out').classList.remove('hidden');
             };
 
-            // INITIALIZATION: Start animation and render only after all functions are loaded
+            // START!
             runEntryAnimation();
         });
     </script>
