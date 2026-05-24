@@ -367,30 +367,52 @@
                 reader.readAsDataURL(file); 
             });
 
-            // --- PURE API CALL (NO DEMO FALLBACK) ---
+            // --- PURE API CALL WITH AUTO-FALLBACK SYSTEM ---
             const runAdvancedGeminiAnalysis = async (imageFile) => {
                 document.getElementById('upload-status-text').innerHTML = "<span class='text-blue-700'>AI Vision processing image...</span>";
-                
-                // Yahan gemini-1.5-flash ko gemini-1.5-flash-latest me badla gaya hai
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${GEMINI_API_KEY}`;
                 
                 const prompt = `Analyze this road image from India. Output ONLY valid JSON, no markdown formatting.
                 { "title": "AI Damage Assessment", "damageBreakdown": { "primary": "string", "secondary": "string" }, "confidence": number, "severity": { "value": number, "max": 10 }, "costEstimation": [ { "item": "string", "quantity": "string", "cost": number } ], "totalCost": number, "recommendation": "string", "damageRect": { "x": 100, "y": 100, "w": 200, "h": 200 } }`;
 
                 const imagePart = await fileToGenerativePart(imageFile);
-                const response = await fetch(apiUrl, { 
-                    method: 'POST', 
-                    headers: { 'Content-Type': 'application/json' }, 
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, imagePart] }] }) 
-                });
                 
-                if (!response.ok) {
-                    const errorDetails = await response.json();
-                    console.error("API Error Details:", errorDetails);
-                    throw new Error(errorDetails.error?.message || "Google API Failed to respond.");
+                // Smart Fallback Array: Ek model fail hua toh dusra chalega (No 'Not Found' error)
+                const modelsToTry = [
+                    'gemini-1.5-pro-latest', 
+                    'gemini-1.5-flash-latest', 
+                    'gemini-2.5-flash'
+                ];
+                
+                let result = null;
+                let lastError = null;
+
+                for (const model of modelsToTry) {
+                    try {
+                        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`;
+                        const response = await fetch(apiUrl, { 
+                            method: 'POST', 
+                            headers: { 'Content-Type': 'application/json' }, 
+                            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }, imagePart] }] }) 
+                        });
+                        
+                        if (!response.ok) {
+                            const errorDetails = await response.json();
+                            throw new Error(errorDetails.error?.message || `Model ${model} blocked.`);
+                        }
+                        
+                        result = await response.json();
+                        console.log(`Success! Image processed by: ${model}`);
+                        break; // Success, loop se bahar niklo
+                    } catch (err) {
+                        console.warn(`Model ${model} failed, switching to next...`, err.message);
+                        lastError = err;
+                    }
+                }
+
+                if (!result) {
+                    throw new Error(lastError.message || "All Google AI models failed to respond.");
                 }
                 
-                const result = await response.json();
                 let rawText = result.candidates[0].content.parts[0].text;
                 rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
                 return JSON.parse(rawText);
@@ -458,7 +480,7 @@
                 document.getElementById('upload-status-text').innerHTML = "<span class='text-blue-700'>AI Vision processing image...</span>";
                 
                 try {
-                    // Yahan seedha API Call Hogi
+                    // Yahan seedha API Call Hogi (with fallback logic inside)
                     const analysis = await runAdvancedGeminiAnalysis(tempFile);
                     
                     const newId = Math.max(...sampleData.reports.map(r => r.id)) + 1;
@@ -471,7 +493,6 @@
                     tempFile = null;
 
                 } catch (error) {
-                    // Agar API fail hui (Limit khatam ya koi issue), toh seedha Error dikhega, Koi fake report nahi banegi.
                     console.error("Actual Process Failed:", error);
                     document.getElementById('upload-status-text').innerHTML = `<span class='text-red-600 font-bold'>Error: ${error.message}</span>`;
                     
